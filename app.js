@@ -368,6 +368,7 @@ function buildDayColumn(day) {
 
     document.addEventListener('mousemove', onCreateMove, { passive: false });
     document.addEventListener('mouseup',   onCreateEnd);
+    document.addEventListener('keydown',   onDragKeyDown);
   });
 
   col.appendChild(grid);
@@ -501,6 +502,7 @@ function onCreateEnd() {
   if (!createDrag) return;
   document.removeEventListener('mousemove', onCreateMove);
   document.removeEventListener('mouseup',   onCreateEnd);
+  document.removeEventListener('keydown',   onDragKeyDown);
 
   const { dayId, startMin, endMin, hasMoved, previewEl } = createDrag;
   previewEl.remove();
@@ -539,6 +541,7 @@ function startMoveDrag(e, eventId, blockEl) {
 
   document.addEventListener('mousemove', onDragMove, { passive: false });
   document.addEventListener('mouseup',   onDragEnd);
+  document.addEventListener('keydown',   onDragKeyDown);
 }
 
 function onMoveDrag(e) {
@@ -597,6 +600,7 @@ function startResizeDrag(e, eventId, blockEl) {
 
   document.addEventListener('mousemove', onDragMove, { passive: false });
   document.addEventListener('mouseup',   onDragEnd);
+  document.addEventListener('keydown',   onDragKeyDown);
 }
 
 function onResizeDrag(e) {
@@ -629,6 +633,25 @@ function onResizeDrag(e) {
   }
 }
 
+// ─── Drag cancel (Escape) ─────────────────────────────────────────────────────
+function onDragKeyDown(e) {
+  if (e.key !== 'Escape') return;
+  if (drag) {
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup',   onDragEnd);
+    document.removeEventListener('keydown',   onDragKeyDown);
+    document.body.classList.remove('is-drag-active', 'is-resize-active');
+    drag = null;
+    renderDays();
+  } else if (createDrag) {
+    document.removeEventListener('mousemove', onCreateMove);
+    document.removeEventListener('mouseup',   onCreateEnd);
+    document.removeEventListener('keydown',   onDragKeyDown);
+    createDrag.previewEl.remove();
+    createDrag = null;
+  }
+}
+
 // ─── Shared drag dispatch ─────────────────────────────────────────────────────
 function onDragMove(e) {
   if (!drag) return;
@@ -641,6 +664,7 @@ function onDragEnd() {
   if (!drag) return;
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup',   onDragEnd);
+  document.removeEventListener('keydown',   onDragKeyDown);
   document.body.classList.remove('is-drag-active', 'is-resize-active');
 
   // Capture everything we need before clearing drag state
