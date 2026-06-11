@@ -219,6 +219,24 @@ function mk(tag, cls) {
 let drag       = null;
 let createDrag = null;
 
+// ─── Legend filter ────────────────────────────────────────────────────────────
+let activeTypeFilter = null;
+
+function setTypeFilter(type) {
+  activeTypeFilter = (activeTypeFilter === type) ? null : type;
+  const bar = document.querySelector('.legend-bar');
+  bar.classList.toggle('has-filter', activeTypeFilter !== null);
+  document.querySelectorAll('.legend-item').forEach(el => {
+    const t = [...el.classList]
+      .find(c => c.startsWith('legend-') && c !== 'legend-item')
+      ?.slice('legend-'.length);
+    el.classList.toggle('is-active', !!t && t === activeTypeFilter);
+  });
+  document.getElementById('papersTotal')
+    .classList.toggle('is-active', activeTypeFilter === 'technical');
+  renderDays();
+}
+
 // ─── Rendering ────────────────────────────────────────────────────────────────
 function render() {
   document.getElementById('conferenceTitle').textContent = state.conferenceName;
@@ -351,7 +369,7 @@ function buildDayColumn(day) {
     const startMn  = snapMin(startHour * 60 + y / HOUR_H * 60);
     const snapH    = state.settings.snapMinutes / 60 * HOUR_H;
 
-    const preview  = mk('div', 'event-block create-preview');
+    const preview  = mk('div', `event-block create-preview type-${activeTypeFilter ?? 'technical'}`);
     preview.style.cssText =
       `top:${(startMn - startHour * 60) / 60 * HOUR_H}px;` +
       `height:${Math.max(snapH, 24)}px`;
@@ -390,6 +408,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   const block = mk('div', `event-block type-${event.type}`);
   block.style.cssText = `top:${top}px;height:${height}px`;
   if (height < 36) block.classList.add('ev-compact');
+  if (activeTypeFilter && event.type !== activeTypeFilter) block.classList.add('ev-dimmed');
   if (numCols > 1) {
     const lPct = (col / numCols * 100).toFixed(3);
     const rPct = ((numCols - col - 1) / numCols * 100).toFixed(3);
@@ -433,6 +452,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   const resizeHandle = mk('div', 'ev-resize');
   resizeHandle.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    if (block.classList.contains('ev-dimmed')) return;
     e.preventDefault();
     e.stopPropagation();
     startResizeDrag(e, event.id, block);
@@ -446,20 +466,24 @@ function buildEventBlock(event, col = 0, numCols = 1) {
     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
     ' stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
-  editBtn.addEventListener('mousedown', e => e.stopPropagation()); // don't start move drag
-  editBtn.addEventListener('click', e => { e.stopPropagation(); openEventModal(event); });
+  editBtn.addEventListener('mousedown', e => e.stopPropagation());
+  editBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (block.classList.contains('ev-dimmed')) return;
+    openEventModal(event);
+  });
   block.appendChild(editBtn);
 
-  // Mousedown on the block body starts a move drag
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    if (block.classList.contains('ev-dimmed')) return;
     if (e.target.closest('.ev-resize') || e.target.closest('.ev-edit-btn')) return;
     startMoveDrag(e, event.id, block);
   });
 
-  // Click (fires only when no drag occurred, because onDragEnd won't re-render)
   block.addEventListener('click', e => {
     e.stopPropagation();
+    if (block.classList.contains('ev-dimmed')) return;
     openEventModal(event);
   });
 
@@ -746,7 +770,7 @@ function openEventModal(event, dayId, defaultStart, defaultEnd) {
   document.getElementById('modalTitle').textContent          = isNew ? 'New Event' : 'Edit Event';
   document.getElementById('deleteEventBtn').style.display    = isNew ? 'none' : '';
   document.getElementById('eventTitle').value                = event?.title       ?? '';
-  document.getElementById('eventType').value                 = event?.type        ?? 'technical';
+  document.getElementById('eventType').value                 = event?.type        ?? activeTypeFilter ?? 'technical';
   document.getElementById('startTime').value                 = event?.startTime   ?? defaultStart ?? '09:00';
   document.getElementById('endTime').value                   = event?.endTime     ?? defaultEnd   ?? '10:00';
   document.getElementById('eventSpeaker').value              = event?.speaker     ?? '';
@@ -971,6 +995,16 @@ function init() {
   initTitleEdit();
 
   // Toolbar
+  document.querySelectorAll('.legend-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const type = [...el.classList]
+        .find(c => c.startsWith('legend-') && c !== 'legend-item')
+        ?.slice('legend-'.length);
+      if (type) setTypeFilter(type);
+    });
+  });
+
+  document.getElementById('papersTotal').addEventListener('click', () => setTypeFilter('technical'));
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
   document.getElementById('undoBtn').addEventListener('click', undo);
   document.getElementById('redoBtn').addEventListener('click', redo);

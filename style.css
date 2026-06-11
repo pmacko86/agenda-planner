@@ -135,8 +135,13 @@ body {
   padding: 2px 8px 2px 4px;
   border-radius: 20px;
   border: 1px solid transparent;
-  cursor: default;
+  cursor: pointer;
+  transition: opacity var(--transition), box-shadow var(--transition);
+  user-select: none;
 }
+.legend-item:hover { opacity: 0.8; }
+.legend-bar.has-filter .legend-item { opacity: 0.35; }
+.legend-bar.has-filter .legend-item.is-active { opacity: 1; box-shadow: 0 0 0 2px currentColor; }
 .legend-item::before {
   content: '';
   width: 8px; height: 8px;
@@ -182,7 +187,13 @@ body {
   border-radius: 20px;
   flex-shrink: 0;
   white-space: nowrap;
+  cursor: pointer;
+  transition: opacity var(--transition), box-shadow var(--transition);
+  user-select: none;
 }
+.papers-total:hover { opacity: 0.8; }
+.legend-bar.has-filter .papers-total:not(.is-active) { opacity: 0.35; }
+.legend-bar.has-filter .papers-total.is-active { box-shadow: 0 0 0 2px currentColor; }
 .papers-total strong { font-size: 0.85rem; }
 
 .legend-tip {
@@ -227,13 +238,10 @@ body {
   cursor: crosshair !important;
   transition: none !important;
   opacity: 0.72;
-  background: var(--primary-light) !important;
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
   border-style: dashed !important;
   z-index: 5 !important;
   transform: none !important;
-  box-shadow: 0 2px 8px rgba(79,70,229,.18) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12) !important;
 }
 
 /* ─── Calendar ─────────────────────────────────────────────────────────────── */
@@ -383,6 +391,7 @@ body {
   user-select: none;
   z-index: 1;
 }
+.event-block.ev-dimmed { opacity: 0.15; cursor: default; }
 .event-block:hover {
   transform: translateX(2px) translateY(-1px);
   box-shadow: var(--shadow-md);
