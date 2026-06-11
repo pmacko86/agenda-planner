@@ -654,8 +654,10 @@ function onDragEnd() {
     return;
   }
 
-  // Suppress the click event that fires immediately after mouseup on a drag
-  document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+  // Suppress the click that fires immediately after mouseup on an event block drag
+  document.addEventListener('click', e => {
+    if (e.target.closest('.event-block')) e.stopPropagation();
+  }, { capture: true, once: true });
 
   const evIdx = state.events.findIndex(ev => ev.id === eventId);
   if (evIdx >= 0) {
