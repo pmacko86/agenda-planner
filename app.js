@@ -376,17 +376,16 @@ function buildDayColumn(day) {
     const startMn  = snapMin(startHour * 60 + y / HOUR_H * 60);
     const snapH    = state.settings.snapMinutes / 60 * HOUR_H;
 
-    const preview  = mk('div', `event-block create-preview type-${activeTypeFilter ?? 'technical'}`);
+    const eventType = activeTypeFilter ?? 'technical';
+    const preview  = mk('div', `event-block create-preview type-${eventType}`);
     preview.style.cssText =
       `top:${(startMn - startHour * 60) / 60 * HOUR_H}px;` +
       `height:${Math.max(snapH, 24)}px`;
-    preview.innerHTML =
-      `<div class="ev-title">New Event</div>` +
-      `<div class="ev-time">${fmtTime(fromMin(startMn))}</div>`;
+    preview.innerHTML = buildCreatePreviewHTML(eventType, startMn, null);
     grid.appendChild(preview);
 
     createDrag = {
-      dayId: day.id, grid, previewEl: preview,
+      dayId: day.id, grid, previewEl: preview, eventType,
       startMin: startMn, endMin: startMn + state.settings.snapMinutes,
       startClientY: e.clientY, hasMoved: false,
     };
@@ -509,11 +508,25 @@ function placeNowLine(grid) {
 }
 
 // ─── Create-drag ─────────────────────────────────────────────────────────────
+function buildCreatePreviewHTML(eventType, startMin, endMin) {
+  const timeStr = endMin !== null
+    ? `${fmtTime(fromMin(startMin))} – ${fmtTime(fromMin(endMin))}`
+    : fmtTime(fromMin(startMin));
+  let html = `<div class="ev-title">New Event</div><div class="ev-time">${timeStr}</div>`;
+  if (eventType === 'technical') {
+    const dur = endMin !== null ? endMin - startMin : state.settings.snapMinutes;
+    const n   = Math.max(0, Math.floor(dur / state.settings.paperDuration));
+    const rem = dur - n * state.settings.paperDuration;
+    html += `<div class="ev-papers">${buildPapersHTML(n, rem)}</div>`;
+  }
+  return html;
+}
+
 function onCreateMove(e) {
   if (!createDrag) return;
   e.preventDefault();
 
-  const { grid, previewEl, startMin } = createDrag;
+  const { grid, previewEl, startMin, eventType } = createDrag;
   const { startHour, endHour, snapMinutes } = state.settings;
 
   const gridRect = grid.getBoundingClientRect();
@@ -525,9 +538,7 @@ function onCreateMove(e) {
   createDrag.hasMoved = true;
 
   previewEl.style.height = `${Math.max(24, (endMn - startMin) / 60 * HOUR_H)}px`;
-  previewEl.innerHTML =
-    `<div class="ev-title">New Event</div>` +
-    `<div class="ev-time">${fmtTime(fromMin(startMin))} – ${fmtTime(fromMin(endMn))}</div>`;
+  previewEl.innerHTML    = buildCreatePreviewHTML(eventType, startMin, endMn);
 }
 
 function onCreateEnd() {
@@ -817,7 +828,6 @@ function handleSaveEvent(e) {
   const title = document.getElementById('eventTitle').value.trim();
   const start = document.getElementById('startTime').value;
   const end   = document.getElementById('endTime').value;
-  if (!title) { document.getElementById('eventTitle').focus(); return; }
   if (toMin(end) <= toMin(start)) { alert('End time must be after start time.'); return; }
 
   const data = {
