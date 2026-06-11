@@ -6,12 +6,14 @@ const DRAG_PX_SQ   = 16;  // 4² — pixel threshold before move-drag activates
 const ZOOM_STEPS   = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 const ZOOM_KEY     = 'agendaPlanner_zoom';
 const THEME_KEY    = 'agendaPlanner_theme';
+const NOWLINE_KEY  = 'agendaPlanner_nowLine';
 
 const ICON_MOON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 const ICON_SUN  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 
-let zoomLevel = 1.0;
-let HOUR_H    = BASE_HOUR_H; // updated by applyZoom()
+let zoomLevel  = 1.0;
+let HOUR_H     = BASE_HOUR_H; // updated by applyZoom()
+let showNowLine = false;
 
 // ─── Default state ─────────────────────────────────────────────────────────────
 function createDefaultState() {
@@ -70,6 +72,11 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem('agendaPlanner_v2', JSON.stringify(state));
+}
+
+// ─── Now-line setting ─────────────────────────────────────────────────────────
+function loadNowLineSetting() {
+  showNowLine = localStorage.getItem(NOWLINE_KEY) === 'true';
 }
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -491,6 +498,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
 }
 
 function placeNowLine(grid) {
+  if (!showNowLine) return;
   const { startHour, endHour } = state.settings;
   const now    = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -853,10 +861,11 @@ function handleDeleteEvent() {
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 function openSettings() {
-  document.getElementById('settingPaperDuration').value = state.settings.paperDuration;
-  document.getElementById('settingStartHour').value     = state.settings.startHour;
-  document.getElementById('settingEndHour').value       = state.settings.endHour;
-  document.getElementById('settingSnapMinutes').value   = state.settings.snapMinutes;
+  document.getElementById('settingPaperDuration').value  = state.settings.paperDuration;
+  document.getElementById('settingStartHour').value      = state.settings.startHour;
+  document.getElementById('settingEndHour').value        = state.settings.endHour;
+  document.getElementById('settingSnapMinutes').value    = state.settings.snapMinutes;
+  document.getElementById('settingShowNowLine').checked  = showNowLine;
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -865,10 +874,11 @@ function closeSettings() {
 }
 
 function handleSaveSettings() {
-  const pd    = parseInt(document.getElementById('settingPaperDuration').value);
-  const start = parseInt(document.getElementById('settingStartHour').value);
-  const end   = parseInt(document.getElementById('settingEndHour').value);
-  const snap  = parseInt(document.getElementById('settingSnapMinutes').value);
+  const pd      = parseInt(document.getElementById('settingPaperDuration').value);
+  const start   = parseInt(document.getElementById('settingStartHour').value);
+  const end     = parseInt(document.getElementById('settingEndHour').value);
+  const snap    = parseInt(document.getElementById('settingSnapMinutes').value);
+  const nowLine = document.getElementById('settingShowNowLine').checked;
 
   if (isNaN(pd) || pd < 5 || pd > 120) { alert('Paper duration must be 5–120 minutes.'); return; }
   if (isNaN(start) || isNaN(end) || end <= start) { alert('End hour must be after start hour.'); return; }
@@ -879,6 +889,12 @@ function handleSaveSettings() {
     pushHistory();
     state.settings = { paperDuration: pd, startHour: start, endHour: end, snapMinutes: snap };
     saveState();
+  }
+
+  if (nowLine !== showNowLine) {
+    showNowLine = nowLine;
+    localStorage.setItem(NOWLINE_KEY, String(showNowLine));
+    refreshNowLines();
   }
   closeSettings();
   render();
@@ -984,7 +1000,8 @@ function initTitleEdit() {
 // ─── Now-line refresh ─────────────────────────────────────────────────────────
 function refreshNowLines() {
   document.querySelectorAll('.now-line').forEach(e => e.remove());
-  document.querySelectorAll('.day-grid').forEach(g => placeNowLine(g));
+  if (showNowLine)
+    document.querySelectorAll('.day-grid').forEach(g => placeNowLine(g));
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -992,6 +1009,7 @@ function init() {
   loadState();
   loadZoom();
   loadTheme();
+  loadNowLineSetting();
   initTitleEdit();
 
   // Toolbar
