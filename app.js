@@ -128,6 +128,43 @@ function zoomOut() {
   if (prev !== undefined) { zoomLevel = prev; applyZoom(); renderDays(); }
 }
 
+// ─── History (undo / redo) ────────────────────────────────────────────────────
+const MAX_HISTORY = 50;
+let undoStack = [];
+let redoStack = [];
+
+function pushHistory() {
+  undoStack.push(JSON.parse(JSON.stringify(state)));
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoBtns();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.parse(JSON.stringify(state)));
+  state = undoStack.pop();
+  saveState();
+  render();
+  updateUndoRedoBtns();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.parse(JSON.stringify(state)));
+  state = redoStack.pop();
+  saveState();
+  render();
+  updateUndoRedoBtns();
+}
+
+function updateUndoRedoBtns() {
+  const u = document.getElementById('undoBtn');
+  const r = document.getElementById('redoBtn');
+  if (u) u.disabled = undoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0;
+}
+
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -260,7 +297,9 @@ function buildDayColumn(day) {
   title.contentEditable = 'true';
   title.spellcheck      = false;
   title.addEventListener('blur', () => {
-    day.label = title.textContent.trim() || day.label;
+    const newLabel = title.textContent.trim() || day.label;
+    if (newLabel !== day.label) pushHistory();
+    day.label = newLabel;
     title.textContent = day.label;
     saveState();
   });
@@ -620,6 +659,7 @@ function onDragEnd() {
 
   const evIdx = state.events.findIndex(ev => ev.id === eventId);
   if (evIdx >= 0) {
+    pushHistory();
     if (type === 'move') {
       state.events[evIdx] = {
         ...state.events[evIdx],
@@ -651,6 +691,7 @@ function getDayAtX(clientX) {
 
 // ─── Day management ───────────────────────────────────────────────────────────
 function addDay() {
+  pushHistory();
   state.days.push({ id: uid(), label: `Day ${state.days.length + 1}` });
   saveState();
   renderDays();
@@ -659,6 +700,7 @@ function addDay() {
 function removeDay(dayId) {
   if (state.days.length <= 1) { alert('You need at least one day.'); return; }
   if (!confirm('Remove this day and all its events?')) return;
+  pushHistory();
   state.days   = state.days.filter(d => d.id !== dayId);
   state.events = state.events.filter(e => e.dayId !== dayId);
   saveState();
@@ -728,6 +770,7 @@ function handleSaveEvent(e) {
     description: document.getElementById('eventDescription').value.trim(),
   };
 
+  pushHistory();
   if (_editEvent) {
     const idx = state.events.findIndex(ev => ev.id === _editEvent.id);
     if (idx >= 0) state.events[idx] = { ...state.events[idx], ...data };
@@ -742,6 +785,7 @@ function handleSaveEvent(e) {
 
 function handleDeleteEvent() {
   if (!_editEvent || !confirm('Delete this event?')) return;
+  pushHistory();
   state.events = state.events.filter(ev => ev.id !== _editEvent.id);
   saveState();
   closeEventModal();
@@ -771,6 +815,7 @@ function handleSaveSettings() {
   if (isNaN(start) || isNaN(end) || end <= start) { alert('End hour must be after start hour.'); return; }
   if (end - start > 24) { alert('Range cannot exceed 24 hours.'); return; }
 
+  pushHistory();
   state.settings = { paperDuration: pd, startHour: start, endHour: end, snapMinutes: snap };
   saveState();
   closeSettings();
@@ -795,6 +840,7 @@ function loadFromFile(file, onSuccess) {
       const imported = JSON.parse(evt.target.result);
       if (!imported.days || !imported.events) throw new Error('Invalid format');
       imported.settings.snapMinutes = imported.settings.snapMinutes || 15;
+      pushHistory();
       state = imported;
       saveState();
       render();
@@ -828,7 +874,8 @@ function createEmptyState() {
 }
 
 function handleLoadSample() {
-  if (!confirm('Replace all current data with sample data? This cannot be undone.')) return;
+  if (!confirm('Replace all current data with sample data?')) return;
+  pushHistory();
   state = createDefaultState();
   saveState();
   closeSettings();
@@ -836,7 +883,8 @@ function handleLoadSample() {
 }
 
 function handleClearData() {
-  if (!confirm('Delete all events and start with an empty schedule? This cannot be undone.')) return;
+  if (!confirm('Delete all events and start with an empty schedule?')) return;
+  pushHistory();
   state = createEmptyState();
   saveState();
   closeSettings();
@@ -857,7 +905,9 @@ function initTitleEdit() {
   });
   titleEl.addEventListener('blur', () => {
     const v = titleEl.textContent.trim();
-    state.conferenceName = v || state.conferenceName;
+    const newName = v || state.conferenceName;
+    if (newName !== state.conferenceName) pushHistory();
+    state.conferenceName = newName;
     titleEl.textContent  = state.conferenceName;
     document.title       = state.conferenceName + ' – Agenda Planner';
     saveState();
@@ -884,6 +934,8 @@ function init() {
 
   // Toolbar
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('redoBtn').addEventListener('click', redo);
   document.getElementById('addDayBtn').addEventListener('click',  addDay);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('zoomInBtn').addEventListener('click',  zoomIn);
@@ -920,6 +972,13 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeEventModal(); closeSettings(); }
+    const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+    if (!inInput && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault(); undo();
+    }
+    if (!inInput && (e.metaKey || e.ctrlKey) && ((e.shiftKey && e.key.toLowerCase() === 'z') || e.key.toLowerCase() === 'y')) {
+      e.preventDefault(); redo();
+    }
   });
 
   // Drag-and-drop JSON import
@@ -946,6 +1005,7 @@ function init() {
   });
 
   render();
+  updateUndoRedoBtns();
   document.title = state.conferenceName + ' – Agenda Planner';
   setInterval(refreshNowLines, 60_000);
 }

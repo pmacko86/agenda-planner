@@ -556,6 +556,8 @@ body.is-resize-active { cursor: ns-resize  !important; user-select: none !import
   line-height: 1;
 }
 .icon-btn:hover { background: var(--surface-dim); color: var(--text); }
+.icon-btn:disabled { opacity: 0.35; cursor: default; }
+.icon-btn:disabled:hover { background: none; color: var(--text-muted); }
 .icon-btn.modal-close:hover { background: #fee2e2; color: var(--danger); }
 
 /* ─── Modal ────────────────────────────────────────────────────────────────── */
