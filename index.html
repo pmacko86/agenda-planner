@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agenda Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Apply saved theme before CSS renders to prevent flash
+    (function(){var t=localStorage.getItem('agendaPlanner_theme');if(t)document.documentElement.dataset.theme=t;})();
+  </script>
+</head>
+<body>
+
+  <div class="drop-overlay" id="dropOverlay" aria-hidden="true">
+    <div class="drop-overlay-box">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span>Drop JSON to import schedule</span>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo">📅</div>
+      <h1 class="conference-title" id="conferenceTitle" title="Click to rename">My Conference</h1>
+      <button class="icon-btn" id="editTitleBtn" title="Rename conference">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      </button>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="themeToggleBtn" title="Switch to dark mode"></button>
+      <div class="zoom-controls">
+        <button class="icon-btn" id="zoomOutBtn" title="Zoom out">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <select class="zoom-select" id="zoomLevelLabel" title="Zoom level">
+          <option value="0.5">50%</option>
+          <option value="0.75">75%</option>
+          <option value="1" selected>100%</option>
+          <option value="1.25">125%</option>
+          <option value="1.5">150%</option>
+          <option value="1.75">175%</option>
+          <option value="2">200%</option>
+          <option value="2.5">250%</option>
+          <option value="3">300%</option>
+        </select>
+        <button class="icon-btn" id="zoomInBtn" title="Zoom in">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+      </div>
+      <button class="btn btn-ghost" id="settingsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        Settings
+      </button>
+      <button class="btn btn-primary" id="addDayBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Day
+      </button>
+    </div>
+  </header>
+
+  <div class="legend-bar">
+    <span class="legend-label">Event types:</span>
+    <span class="legend-item legend-keynote">Keynote</span>
+    <span class="legend-item legend-technical">Technical Session</span>
+    <span class="legend-item legend-workshop">Workshop</span>
+    <span class="legend-item legend-panel">Panel</span>
+    <span class="legend-item legend-break">Break</span>
+    <span class="legend-item legend-meal">Meal</span>
+    <span class="legend-item legend-social">Social</span>
+    <span class="legend-item legend-other">Other</span>
+    <span class="legend-sep"></span>
+    <span class="papers-total" id="papersTotal" title="Total across all technical sessions">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <strong id="papersTotalCount">0</strong> papers total
+    </span>
+    <span class="legend-tip">Drag empty space to create · Click event to edit</span>
+  </div>
+
+  <main class="calendar-wrapper">
+    <div class="calendar" id="calendar">
+      <div class="time-axis" id="timeAxis"></div>
+    </div>
+  </main>
+
+  <!-- Event Modal -->
+  <div class="modal-overlay" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">New Event</h2>
+        <button class="icon-btn modal-close" id="closeModal" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="eventForm" novalidate>
+        <div class="form-group">
+          <label for="eventTitle">Title</label>
+          <input type="text" id="eventTitle" required placeholder="e.g. Keynote: Future of AI" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="eventType">Type</label>
+            <select id="eventType">
+              <option value="keynote">Keynote</option>
+              <option value="technical" selected>Technical Session</option>
+              <option value="workshop">Workshop</option>
+              <option value="panel">Panel</option>
+              <option value="break">Break / Coffee</option>
+              <option value="meal">Meal</option>
+              <option value="social">Social / Reception</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="eventRoom">Room / Track</label>
+            <input type="text" id="eventRoom" placeholder="Optional" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="startTime">Start</label>
+            <input type="time" id="startTime" required>
+          </div>
+          <div class="form-group">
+            <label for="endTime">End</label>
+            <input type="time" id="endTime" required>
+          </div>
+        </div>
+        <div class="info-box info-papers" id="paperCountInfo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Fits <strong id="paperCount">0</strong> paper presentations
+          <span class="info-sub">(<span id="paperDurationDisplay">20</span> min each)</span>
+        </div>
+        <div class="form-group">
+          <label for="eventSpeaker">Speaker / Chair</label>
+          <input type="text" id="eventSpeaker" placeholder="Optional" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="eventDescription">Notes</label>
+          <textarea id="eventDescription" rows="2" placeholder="Optional description or notes"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" id="deleteEventBtn">Delete</button>
+          <div class="modal-footer-right">
+            <button type="button" class="btn btn-ghost" id="cancelModal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Event</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="settingsTitle">Settings</h2>
+        <button class="icon-btn modal-close" id="closeSettings" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="settings-section">
+        <h3>Technical Sessions</h3>
+        <div class="form-group">
+          <label for="settingPaperDuration">Paper presentation length (minutes)</label>
+          <div class="input-with-hint">
+            <input type="number" id="settingPaperDuration" min="5" max="120" step="5" value="20">
+            <span class="input-hint">Used to calculate how many papers fit in a session</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Drag &amp; Snap</h3>
+        <div class="form-group">
+          <label for="settingSnapMinutes">Snap granularity</label>
+          <select id="settingSnapMinutes">
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15" selected>15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+          </select>
+          <span class="input-hint" style="margin-top:4px;display:block">Applies to dragging, resizing, and creating events</span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Time Range</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="settingStartHour">Day starts at (hour)</label>
+            <input type="number" id="settingStartHour" min="0" max="23" value="8">
+          </div>
+          <div class="form-group">
+            <label for="settingEndHour">Day ends at (hour)</label>
+            <input type="number" id="settingEndHour" min="1" max="24" value="20">
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Data</h3>
+        <div class="settings-actions">
+          <button class="btn btn-ghost btn-sm" id="exportBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export JSON
+          </button>
+          <label class="btn btn-ghost btn-sm" id="importLabel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import JSON
+            <input type="file" id="importFile" accept=".json" style="display:none">
+          </label>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-ghost btn-sm" id="loadSampleBtn">Load Sample Data</button>
+          <button class="btn btn-danger btn-sm" id="clearDataBtn">Clear All Data</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div></div>
+        <div class="modal-footer-right">
+          <button class="btn btn-ghost" id="cancelSettings">Cancel</button>
+          <button class="btn btn-primary" id="saveSettings">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+{
+  "conferenceName": "FAST '26",
+  "settings": {
+    "paperDuration": 20,
+    "startHour": 7,
+    "endHour": 23,
+    "snapMinutes": 5
+  },
+  "days": [
+    { "id": "day-1", "label": "Monday, Feb 23" },
+    { "id": "day-2", "label": "Tuesday, Feb 24" },
+    { "id": "day-3", "label": "Wednesday, Feb 25" },
+    { "id": "day-4", "label": "Thursday, Feb 26" }
+  ],
+  "events": [
+    {
+      "id": "e2",
+      "dayId": "day-1",
+      "title": "FAST '26 Student Meetup",
+      "type": "social",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "speaker": "",
+      "room": "Cypress Room",
+      "description": ""
+    },
+    {
+      "id": "e4",
+      "dayId": "day-2",
+      "title": "Continental Breakfast",
+      "type": "meal",
+      "startTime": "07:30",
+      "endTime": "09:00",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e5",
+      "dayId": "day-2",
+      "title": "Opening Remarks and Erik Riedel Best Paper Awards",
+      "type": "keynote",
+      "startTime": "09:00",
+      "endTime": "09:15",
+      "speaker": "André Brinkmann, Johannes Gutenberg-Universität Mainz; Philip Shilane, Dell Technologies",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e6",
+      "dayId": "day-2",
+      "title": "Cloud Technologies I",
+      "type": "technical",
+      "startTime": "09:15",
+      "endTime": "10:35",
+      "speaker": "Ming Zhao, Arizona State University",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e7",
+      "dayId": "day-2",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "10:35",
+      "endTime": "11:05",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e8",
+      "dayId": "day-2",
+      "title": "AI and LLMs I",
+      "type": "technical",
+      "startTime": "11:05",
+      "endTime": "12:25",
+      "speaker": "Bingzhe Li, The University of Texas at Dallas",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e9",
+      "dayId": "day-2",
+      "title": "Lunch (on your own)",
+      "type": "meal",
+      "startTime": "12:25",
+      "endTime": "14:00",
+      "speaker": "",
+      "room": "",
+      "description": ""
+    },
+    {
+      "id": "e10",
+      "dayId": "day-2",
+      "title": "Indexing",
+      "type": "technical",
+      "startTime": "14:00",
+      "endTime": "15:40",
+      "speaker": "Zhichao Cao, Arizona State University",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e11",
+      "dayId": "day-2",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "15:40",
+      "endTime": "16:10",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e12",
+      "dayId": "day-2",
+      "title": "Work-in-Progress Reports (WiPs)",
+      "type": "panel",
+      "startTime": "16:10",
+      "endTime": "17:10",
+      "speaker": "",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e13",
+      "dayId": "day-2",
+      "title": "FAST '26 Poster Session and Reception",
+      "type": "social",
+      "startTime": "17:30",
+      "endTime": "19:00",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e14",
+      "dayId": "day-2",
+      "title": "Sponsor Events",
+      "type": "social",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "speaker": "",
+      "room": "",
+      "description": ""
+    },
+    {
+      "id": "e15",
+      "dayId": "day-2",
+      "title": "Birds-of-a-Feather Sessions (BoFs)",
+      "type": "panel",
+      "startTime": "19:00",
+      "endTime": "22:00",
+      "speaker": "",
+      "room": "",
+      "description": ""
+    },
+    {
+      "id": "e17",
+      "dayId": "day-3",
+      "title": "Continental Breakfast",
+      "type": "meal",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e18",
+      "dayId": "day-3",
+      "title": "Keynote Address",
+      "type": "keynote",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "speaker": "",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e19",
+      "dayId": "day-3",
+      "title": "FAST '26 Test of Time Award Presentation",
+      "type": "keynote",
+      "startTime": "10:00",
+      "endTime": "10:20",
+      "speaker": "",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e20",
+      "dayId": "day-3",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "10:20",
+      "endTime": "10:50",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e21",
+      "dayId": "day-3",
+      "title": "AI and LLMs II",
+      "type": "technical",
+      "startTime": "10:50",
+      "endTime": "12:30",
+      "speaker": "Jian Zhang, The Hong Kong University of Science and Technology",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e22",
+      "dayId": "day-3",
+      "title": "FAST '26 Conference Luncheon",
+      "type": "meal",
+      "startTime": "12:30",
+      "endTime": "14:00",
+      "speaker": "",
+      "room": "Terra Courtyard",
+      "description": ""
+    },
+    {
+      "id": "e23",
+      "dayId": "day-3",
+      "title": "SSDs and CXL",
+      "type": "technical",
+      "startTime": "14:00",
+      "endTime": "15:40",
+      "speaker": "Ethan Miller, University of California, Santa Cruz, and Pure Storage",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e24",
+      "dayId": "day-3",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "15:40",
+      "endTime": "16:10",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e25",
+      "dayId": "day-3",
+      "title": "Virtualization",
+      "type": "technical",
+      "startTime": "16:10",
+      "endTime": "17:30",
+      "speaker": "Mai Zheng, Iowa State University",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e26",
+      "dayId": "day-3",
+      "title": "Sponsor Events",
+      "type": "social",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "speaker": "",
+      "room": "",
+      "description": ""
+    },
+    {
+      "id": "e27",
+      "dayId": "day-3",
+      "title": "Birds-of-a-Feather Sessions (BoFs)",
+      "type": "panel",
+      "startTime": "17:30",
+      "endTime": "20:30",
+      "speaker": "",
+      "room": "",
+      "description": ""
+    },
+    {
+      "id": "e29",
+      "dayId": "day-4",
+      "title": "Continental Breakfast",
+      "type": "meal",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e30",
+      "dayId": "day-4",
+      "title": "Cloud Technologies II",
+      "type": "technical",
+      "startTime": "09:00",
+      "endTime": "10:20",
+      "speaker": "Uday Kiran Jonnala, Dell Technologies",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e31",
+      "dayId": "day-4",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "10:20",
+      "endTime": "10:50",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e32",
+      "dayId": "day-4",
+      "title": "Tiering, Mobile, and SSDs",
+      "type": "technical",
+      "startTime": "10:50",
+      "endTime": "12:30",
+      "speaker": "Vasily Tarasov, IBM Research",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e33",
+      "dayId": "day-4",
+      "title": "Google Student Luncheon",
+      "type": "meal",
+      "startTime": "12:30",
+      "endTime": "14:00",
+      "speaker": "",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e34",
+      "dayId": "day-4",
+      "title": "Integrity",
+      "type": "technical",
+      "startTime": "14:00",
+      "endTime": "15:20",
+      "speaker": "Gala Yadgar, Technion—Israel Institute of Technology",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    },
+    {
+      "id": "e35",
+      "dayId": "day-4",
+      "title": "Coffee and Tea Break",
+      "type": "break",
+      "startTime": "15:20",
+      "endTime": "15:50",
+      "speaker": "",
+      "room": "Mezzanine East/West",
+      "description": ""
+    },
+    {
+      "id": "e36",
+      "dayId": "day-4",
+      "title": "OS",
+      "type": "technical",
+      "startTime": "15:50",
+      "endTime": "17:10",
+      "speaker": "Yu Liang, ETH Zurich",
+      "room": "Santa Clara Ballroom",
+      "description": ""
+    }
+  ]
+}

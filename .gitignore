@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code
+.claude/settings.local.json
+
+# Local source files not for the repo
+FAST*.html
