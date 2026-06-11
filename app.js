@@ -661,21 +661,23 @@ function onDragEnd() {
 
   const evIdx = state.events.findIndex(ev => ev.id === eventId);
   if (evIdx >= 0) {
-    pushHistory();
+    const ev = state.events[evIdx];
     if (type === 'move') {
-      state.events[evIdx] = {
-        ...state.events[evIdx],
-        dayId:     previewDayId,
-        startTime: fromMin(previewStartMin),
-        endTime:   fromMin(previewStartMin + duration),
-      };
+      const newStart = fromMin(previewStartMin);
+      const newEnd   = fromMin(previewStartMin + duration);
+      if (previewDayId !== ev.dayId || newStart !== ev.startTime || newEnd !== ev.endTime) {
+        pushHistory();
+        state.events[evIdx] = { ...ev, dayId: previewDayId, startTime: newStart, endTime: newEnd };
+        saveState();
+      }
     } else {
-      state.events[evIdx] = {
-        ...state.events[evIdx],
-        endTime: fromMin(previewEndMin),
-      };
+      const newEnd = fromMin(previewEndMin);
+      if (newEnd !== ev.endTime) {
+        pushHistory();
+        state.events[evIdx] = { ...ev, endTime: newEnd };
+        saveState();
+      }
     }
-    saveState();
   }
   renderDays();
 }
@@ -772,15 +774,22 @@ function handleSaveEvent(e) {
     description: document.getElementById('eventDescription').value.trim(),
   };
 
-  pushHistory();
   if (_editEvent) {
     const idx = state.events.findIndex(ev => ev.id === _editEvent.id);
-    if (idx >= 0) state.events[idx] = { ...state.events[idx], ...data };
+    if (idx >= 0) {
+      const ev = state.events[idx];
+      if (Object.keys(data).some(k => data[k] !== ev[k])) {
+        pushHistory();
+        state.events[idx] = { ...ev, ...data };
+        saveState();
+      }
+    }
   } else {
+    pushHistory();
     state.events.push({ id: uid(), dayId: _editDayId, ...data });
+    saveState();
   }
 
-  saveState();
   closeEventModal();
   renderDays();
 }
@@ -817,9 +826,12 @@ function handleSaveSettings() {
   if (isNaN(start) || isNaN(end) || end <= start) { alert('End hour must be after start hour.'); return; }
   if (end - start > 24) { alert('Range cannot exceed 24 hours.'); return; }
 
-  pushHistory();
-  state.settings = { paperDuration: pd, startHour: start, endHour: end, snapMinutes: snap };
-  saveState();
+  if (pd !== state.settings.paperDuration || start !== state.settings.startHour ||
+      end !== state.settings.endHour || snap !== state.settings.snapMinutes) {
+    pushHistory();
+    state.settings = { paperDuration: pd, startHour: start, endHour: end, snapMinutes: snap };
+    saveState();
+  }
   closeSettings();
   render();
 }
