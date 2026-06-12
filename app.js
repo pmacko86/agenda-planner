@@ -667,6 +667,9 @@ function startMoveDrag(e, eventId, blockEl) {
     startClientY:    e.clientY,
     blockEl,
     currentGrid:     blockEl.closest('.day-grid'),
+    originalGrid:    blockEl.closest('.day-grid'),
+    originalTop:     blockEl.style.top,
+    ghostEl:         null,
     previewStartMin: startMn,
     previewDayId:    ev.dayId,
     hasMoved:        false,
@@ -677,6 +680,22 @@ function startMoveDrag(e, eventId, blockEl) {
   document.addEventListener('mouseup',   onDragEnd);
   document.addEventListener('keydown',   onDragKeyDown);
   document.addEventListener('keyup',     onDragKeyUp);
+}
+
+function showCopyGhost() {
+  if (!drag || drag.ghostEl) return;
+  const ghost = drag.blockEl.cloneNode(true);
+  ghost.classList.remove('is-dragging', 'is-copying');
+  ghost.classList.add('is-copy-ghost');
+  ghost.style.top = drag.originalTop;
+  drag.originalGrid.appendChild(ghost);
+  drag.ghostEl = ghost;
+}
+
+function hideCopyGhost() {
+  if (!drag || !drag.ghostEl) return;
+  drag.ghostEl.remove();
+  drag.ghostEl = null;
 }
 
 function onMoveDrag(e) {
@@ -692,6 +711,7 @@ function onMoveDrag(e) {
     blockEl.classList.toggle('is-copying', e.altKey);
     document.body.classList.toggle('is-drag-active', !e.altKey);
     document.body.classList.toggle('is-copy-drag',    e.altKey);
+    if (e.altKey) showCopyGhost();
   }
   drag.hasMoved = true;
 
@@ -702,6 +722,7 @@ function onMoveDrag(e) {
     blockEl.classList.toggle('is-copying', copying);
     document.body.classList.toggle('is-drag-active', !copying);
     document.body.classList.toggle('is-copy-drag',    copying);
+    if (copying) showCopyGhost(); else hideCopyGhost();
   }
 
   const dayInfo = getDayAtX(e.clientX);
@@ -803,6 +824,7 @@ function onDragKeyDown(e) {
       document.removeEventListener('keydown',   onDragKeyDown);
       document.removeEventListener('keyup',     onDragKeyUp);
       document.body.classList.remove('is-drag-active', 'is-resize-active', 'is-copy-drag');
+      hideCopyGhost();
       drag = null;
       renderDays();
     } else if (createDrag) {
@@ -817,6 +839,7 @@ function onDragKeyDown(e) {
     drag.blockEl.classList.add('is-copying');
     document.body.classList.remove('is-drag-active');
     document.body.classList.add('is-copy-drag');
+    showCopyGhost();
   }
 }
 
@@ -826,6 +849,7 @@ function onDragKeyUp(e) {
     drag.blockEl.classList.remove('is-copying');
     document.body.classList.add('is-drag-active');
     document.body.classList.remove('is-copy-drag');
+    hideCopyGhost();
   }
 }
 
@@ -848,6 +872,7 @@ function onDragEnd() {
   // Capture everything we need before clearing drag state
   const { eventId, hasMoved, type, blockEl,
           previewStartMin, previewDayId, previewEndMin, duration, isCopying } = drag;
+  hideCopyGhost();
   drag = null;
 
   if (!hasMoved) {
@@ -1078,6 +1103,7 @@ function loadFromFile(file, onSuccess) {
       state = imported;
       saveState();
       render();
+      document.title = state.conferenceName + ' – Agenda Planner';
       if (onSuccess) onSuccess();
     } catch {
       alert('Invalid JSON file.');
@@ -1114,6 +1140,7 @@ function handleLoadSample() {
   saveState();
   closeSettings();
   render();
+  document.title = state.conferenceName + ' – Agenda Planner';
 }
 
 function handleClearData() {
@@ -1123,6 +1150,7 @@ function handleClearData() {
   saveState();
   closeSettings();
   render();
+  document.title = state.conferenceName + ' – Agenda Planner';
 }
 
 // ─── Conference title inline edit ─────────────────────────────────────────────
