@@ -4,16 +4,18 @@
 const BASE_HOUR_H  = 64;  // px per hour at 100% zoom
 const DRAG_PX_SQ   = 16;  // 4² — pixel threshold before move-drag activates
 const ZOOM_STEPS   = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
-const ZOOM_KEY     = 'agendaPlanner_zoom';
-const THEME_KEY    = 'agendaPlanner_theme';
-const NOWLINE_KEY  = 'agendaPlanner_nowLine';
+const ZOOM_KEY       = 'agendaPlanner_zoom';
+const THEME_KEY      = 'agendaPlanner_theme';
+const NOWLINE_KEY    = 'agendaPlanner_nowLine';
+const QUICK_EDIT_KEY = 'agendaPlanner_quickEdit';
 
 const ICON_MOON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 const ICON_SUN  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 
-let zoomLevel  = 1.0;
-let HOUR_H     = BASE_HOUR_H; // updated by applyZoom()
+let zoomLevel   = 1.0;
+let HOUR_H      = BASE_HOUR_H; // updated by applyZoom()
 let showNowLine = false;
+let quickEdit   = false;
 
 // ─── Default state ─────────────────────────────────────────────────────────────
 function createDefaultState() {
@@ -77,6 +79,10 @@ function saveState() {
 // ─── Now-line setting ─────────────────────────────────────────────────────────
 function loadNowLineSetting() {
   showNowLine = localStorage.getItem(NOWLINE_KEY) === 'true';
+}
+
+function loadQuickEdit() {
+  quickEdit = localStorage.getItem(QUICK_EDIT_KEY) === 'true';
 }
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -218,6 +224,18 @@ function mk(tag, cls) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   return e;
+}
+
+function findNearestEventEdge(rawMin, dayId, thresholdPx, excludeId = null) {
+  const range = thresholdPx / HOUR_H * 60;
+  for (const ev of state.events) {
+    if (ev.dayId !== dayId) continue;
+    if (ev.id === excludeId) continue;
+    const s = toMin(ev.startTime), end = toMin(ev.endTime);
+    if (Math.abs(rawMin - s)   <= range) return s;
+    if (Math.abs(rawMin - end) <= range) return end;
+  }
+  return null;
 }
 
 // ─── Drag state ───────────────────────────────────────────────────────────────
@@ -371,10 +389,12 @@ function buildDayColumn(day) {
     if (e.target.closest('.day-header-title')) return;
     e.preventDefault();
 
-    const rect     = grid.getBoundingClientRect();
-    const y        = e.clientY - rect.top;
-    const startMn  = snapMin(startHour * 60 + y / HOUR_H * 60);
-    const snapH    = state.settings.snapMinutes / 60 * HOUR_H;
+    const rect    = grid.getBoundingClientRect();
+    const y       = e.clientY - rect.top;
+    const rawMn   = startHour * 60 + y / HOUR_H * 60;
+    const edgeMn  = findNearestEventEdge(rawMn, day.id, 8);
+    const startMn = edgeMn !== null ? edgeMn : snapMin(rawMn);
+    const snapH   = state.settings.snapMinutes / 60 * HOUR_H;
 
     const eventType = activeTypeFilter ?? 'technical';
     const preview  = mk('div', `event-block create-preview type-${eventType}`);
@@ -386,6 +406,7 @@ function buildDayColumn(day) {
 
     createDrag = {
       dayId: day.id, grid, previewEl: preview, eventType,
+      anchorMin: startMn,
       startMin: startMn, endMin: startMn + state.settings.snapMinutes,
       startClientY: e.clientY, hasMoved: false,
     };
@@ -427,7 +448,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   titleEl.textContent = event.title;
   block.appendChild(titleEl);
 
-  if (height >= 46) {
+  if (height >= 46 || !event.title) {
     const timeEl = mk('div', 'ev-time');
     timeEl.textContent = `${fmtTime(event.startTime)} – ${fmtTime(event.endTime)}`;
     block.appendChild(timeEl);
@@ -480,16 +501,39 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   });
   block.appendChild(editBtn);
 
+  // Delete button (left of edit, visible on hover)
+  const delBtn = mk('button', 'ev-del-btn');
+  delBtn.title = 'Delete event';
+  delBtn.innerHTML =
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+    ' stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<polyline points="3 6 5 6 21 6"/>' +
+    '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+    '<path d="M10 11v6M14 11v6"/>' +
+    '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  delBtn.addEventListener('mousedown', e => e.stopPropagation());
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (block.classList.contains('ev-dimmed')) return;
+    if (!quickEdit && !confirm('Delete this event?')) return;
+    pushHistory();
+    state.events = state.events.filter(ev => ev.id !== event.id);
+    saveState();
+    renderDays();
+  });
+  block.appendChild(delBtn);
+
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (block.classList.contains('ev-dimmed')) return;
-    if (e.target.closest('.ev-resize') || e.target.closest('.ev-edit-btn')) return;
+    if (e.target.closest('.ev-resize') || e.target.closest('.ev-edit-btn') || e.target.closest('.ev-del-btn')) return;
     startMoveDrag(e, event.id, block);
   });
 
   block.addEventListener('click', e => {
     e.stopPropagation();
     if (block.classList.contains('ev-dimmed')) return;
+    if (e.target.closest('.ev-del-btn')) return;
     openEventModal(event);
   });
 
@@ -526,19 +570,32 @@ function onCreateMove(e) {
   if (!createDrag) return;
   e.preventDefault();
 
-  const { grid, previewEl, startMin, eventType } = createDrag;
+  const { grid, previewEl, anchorMin, eventType } = createDrag;
   const { startHour, endHour, snapMinutes } = state.settings;
 
   const gridRect = grid.getBoundingClientRect();
   const y        = Math.max(0, e.clientY - gridRect.top);
-  let   endMn    = snapMin(startHour * 60 + y / HOUR_H * 60);
-  endMn = Math.max(startMin + snapMinutes, Math.min(endMn, endHour * 60));
+  const rawMn    = startHour * 60 + y / HOUR_H * 60;
+  const edgeMn   = findNearestEventEdge(rawMn, createDrag.dayId, 8);
+  const curMn    = edgeMn !== null ? edgeMn : snapMin(rawMn);
 
+  let startMn, endMn;
+  if (curMn >= anchorMin) {
+    startMn = anchorMin;
+    endMn   = Math.max(anchorMin + snapMinutes, Math.min(curMn, endHour * 60));
+  } else {
+    endMn   = anchorMin;
+    startMn = Math.max(startHour * 60, Math.min(curMn, anchorMin - snapMinutes));
+  }
+
+  createDrag.startMin = startMn;
   createDrag.endMin   = endMn;
   createDrag.hasMoved = true;
 
-  previewEl.style.height = `${Math.max(24, (endMn - startMin) / 60 * HOUR_H)}px`;
-  previewEl.innerHTML    = buildCreatePreviewHTML(eventType, startMin, endMn);
+  const height = Math.max(24, (endMn - startMn) / 60 * HOUR_H);
+  previewEl.style.top    = `${(startMn - startHour * 60) / 60 * HOUR_H}px`;
+  previewEl.style.height = `${height}px`;
+  previewEl.innerHTML    = buildCreatePreviewHTML(eventType, startMn, endMn);
 }
 
 function onCreateEnd() {
@@ -547,17 +604,28 @@ function onCreateEnd() {
   document.removeEventListener('mouseup',   onCreateEnd);
   document.removeEventListener('keydown',   onDragKeyDown);
 
-  const { dayId, startMin, endMin, hasMoved, previewEl } = createDrag;
+  const { dayId, anchorMin, startMin, endMin, hasMoved, previewEl, eventType } = createDrag;
   previewEl.remove();
   createDrag = null;
 
   const { endHour } = state.settings;
-  // Click with no drag defaults to a 1-hour event
-  const finalEnd = hasMoved
-    ? endMin
-    : Math.min(startMin + 60, endHour * 60);
+  // Click with no drag defaults to a 1-hour event starting at the click point
+  const finalStart = hasMoved ? startMin : anchorMin;
+  const finalEnd   = hasMoved ? endMin   : Math.min(anchorMin + 60, endHour * 60);
 
-  openEventModal(null, dayId, fromMin(startMin), fromMin(finalEnd));
+  if (quickEdit) {
+    pushHistory();
+    state.events.push({
+      id: uid(), dayId,
+      title: '', type: eventType,
+      startTime: fromMin(finalStart), endTime: fromMin(finalEnd),
+      speaker: '', room: '', description: '',
+    });
+    saveState();
+    renderDays();
+  } else {
+    openEventModal(null, dayId, fromMin(finalStart), fromMin(finalEnd));
+  }
 }
 
 // ─── Move-drag ────────────────────────────────────────────────────────────────
@@ -580,11 +648,13 @@ function startMoveDrag(e, eventId, blockEl) {
     previewStartMin: startMn,
     previewDayId:    ev.dayId,
     hasMoved:        false,
+    isCopying:       false,
   };
 
   document.addEventListener('mousemove', onDragMove, { passive: false });
   document.addEventListener('mouseup',   onDragEnd);
   document.addEventListener('keydown',   onDragKeyDown);
+  document.addEventListener('keyup',     onDragKeyUp);
 }
 
 function onMoveDrag(e) {
@@ -595,10 +665,22 @@ function onMoveDrag(e) {
   if (!drag.hasMoved) {
     const dx = e.clientX - startClientX, dy = e.clientY - startClientY;
     if (dx * dx + dy * dy < DRAG_PX_SQ) return;
+    drag.isCopying = e.altKey;
     blockEl.classList.add('is-dragging');
-    document.body.classList.add('is-drag-active');
+    blockEl.classList.toggle('is-copying', e.altKey);
+    document.body.classList.toggle('is-drag-active', !e.altKey);
+    document.body.classList.toggle('is-copy-drag',    e.altKey);
   }
   drag.hasMoved = true;
+
+  // Sync copy mode if Alt is pressed/released mid-drag
+  const copying = e.altKey;
+  if (copying !== drag.isCopying) {
+    drag.isCopying = copying;
+    blockEl.classList.toggle('is-copying', copying);
+    document.body.classList.toggle('is-drag-active', !copying);
+    document.body.classList.toggle('is-copy-drag',    copying);
+  }
 
   const dayInfo = getDayAtX(e.clientX);
   if (!dayInfo) return;
@@ -607,6 +689,15 @@ function onMoveDrag(e) {
   const gridRect = targetGrid.getBoundingClientRect();
   const relY     = e.clientY - gridRect.top - offsetY;
   let   newStart = snapMin(startHour * 60 + relY / HOUR_H * 60);
+  if (!e.shiftKey) {
+    const snapS = findNearestEventEdge(newStart, targetDayId, 8, drag.eventId);
+    if (snapS !== null) {
+      newStart = snapS;
+    } else {
+      const snapE = findNearestEventEdge(newStart + duration, targetDayId, 8, drag.eventId);
+      if (snapE !== null) newStart = snapE - duration;
+    }
+  }
   newStart = Math.max(startHour * 60, Math.min(newStart, endHour * 60 - duration));
   const top = (newStart - startHour * 60) / 60 * HOUR_H;
 
@@ -634,6 +725,7 @@ function startResizeDrag(e, eventId, blockEl) {
   drag = {
     type: 'resize',
     eventId, blockEl,
+    dayId:          ev.dayId,
     startClientY:   e.clientY,
     startMin:       toMin(ev.startTime),
     originalEndMin: toMin(ev.endTime),
@@ -652,6 +744,10 @@ function onResizeDrag(e) {
 
   const deltaY = e.clientY - startClientY;
   let   newEnd = snapMin(originalEndMin + deltaY / HOUR_H * 60);
+  if (!e.shiftKey) {
+    const snapE = findNearestEventEdge(newEnd, drag.dayId, 8, drag.eventId);
+    if (snapE !== null) newEnd = snapE;
+  }
   newEnd = Math.max(startMin + snapMinutes, Math.min(newEnd, endHour * 60));
 
   drag.previewEndMin = newEnd;
@@ -676,22 +772,38 @@ function onResizeDrag(e) {
   }
 }
 
-// ─── Drag cancel (Escape) ─────────────────────────────────────────────────────
+// ─── Drag cancel (Escape) / copy-mode toggle (Alt) ───────────────────────────
 function onDragKeyDown(e) {
-  if (e.key !== 'Escape') return;
-  if (drag) {
-    document.removeEventListener('mousemove', onDragMove);
-    document.removeEventListener('mouseup',   onDragEnd);
-    document.removeEventListener('keydown',   onDragKeyDown);
-    document.body.classList.remove('is-drag-active', 'is-resize-active');
-    drag = null;
-    renderDays();
-  } else if (createDrag) {
-    document.removeEventListener('mousemove', onCreateMove);
-    document.removeEventListener('mouseup',   onCreateEnd);
-    document.removeEventListener('keydown',   onDragKeyDown);
-    createDrag.previewEl.remove();
-    createDrag = null;
+  if (e.key === 'Escape') {
+    if (drag) {
+      document.removeEventListener('mousemove', onDragMove);
+      document.removeEventListener('mouseup',   onDragEnd);
+      document.removeEventListener('keydown',   onDragKeyDown);
+      document.removeEventListener('keyup',     onDragKeyUp);
+      document.body.classList.remove('is-drag-active', 'is-resize-active', 'is-copy-drag');
+      drag = null;
+      renderDays();
+    } else if (createDrag) {
+      document.removeEventListener('mousemove', onCreateMove);
+      document.removeEventListener('mouseup',   onCreateEnd);
+      document.removeEventListener('keydown',   onDragKeyDown);
+      createDrag.previewEl.remove();
+      createDrag = null;
+    }
+  } else if (e.key === 'Alt' && drag?.type === 'move' && drag.hasMoved && !drag.isCopying) {
+    drag.isCopying = true;
+    drag.blockEl.classList.add('is-copying');
+    document.body.classList.remove('is-drag-active');
+    document.body.classList.add('is-copy-drag');
+  }
+}
+
+function onDragKeyUp(e) {
+  if (e.key === 'Alt' && drag?.type === 'move' && drag.isCopying) {
+    drag.isCopying = false;
+    drag.blockEl.classList.remove('is-copying');
+    document.body.classList.add('is-drag-active');
+    document.body.classList.remove('is-copy-drag');
   }
 }
 
@@ -708,16 +820,17 @@ function onDragEnd() {
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup',   onDragEnd);
   document.removeEventListener('keydown',   onDragKeyDown);
-  document.body.classList.remove('is-drag-active', 'is-resize-active');
+  document.removeEventListener('keyup',     onDragKeyUp);
+  document.body.classList.remove('is-drag-active', 'is-resize-active', 'is-copy-drag');
 
   // Capture everything we need before clearing drag state
   const { eventId, hasMoved, type, blockEl,
-          previewStartMin, previewDayId, previewEndMin, duration } = drag;
+          previewStartMin, previewDayId, previewEndMin, duration, isCopying } = drag;
   drag = null;
 
   if (!hasMoved) {
     // Nothing moved — remove visual classes and let the click event open the modal
-    blockEl.classList.remove('is-dragging', 'is-resizing');
+    blockEl.classList.remove('is-dragging', 'is-resizing', 'is-copying');
     return;
   }
 
@@ -732,7 +845,11 @@ function onDragEnd() {
     if (type === 'move') {
       const newStart = fromMin(previewStartMin);
       const newEnd   = fromMin(previewStartMin + duration);
-      if (previewDayId !== ev.dayId || newStart !== ev.startTime || newEnd !== ev.endTime) {
+      if (isCopying) {
+        pushHistory();
+        state.events.push({ ...ev, id: uid(), dayId: previewDayId, startTime: newStart, endTime: newEnd });
+        saveState();
+      } else if (previewDayId !== ev.dayId || newStart !== ev.startTime || newEnd !== ev.endTime) {
         pushHistory();
         state.events[evIdx] = { ...ev, dayId: previewDayId, startTime: newStart, endTime: newEnd };
         saveState();
@@ -876,6 +993,7 @@ function openSettings() {
   document.getElementById('settingEndHour').value        = state.settings.endHour;
   document.getElementById('settingSnapMinutes').value    = state.settings.snapMinutes;
   document.getElementById('settingShowNowLine').checked  = showNowLine;
+  document.getElementById('settingQuickEdit').checked    = quickEdit;
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -905,6 +1023,12 @@ function handleSaveSettings() {
     showNowLine = nowLine;
     localStorage.setItem(NOWLINE_KEY, String(showNowLine));
     refreshNowLines();
+  }
+
+  const qe = document.getElementById('settingQuickEdit').checked;
+  if (qe !== quickEdit) {
+    quickEdit = qe;
+    localStorage.setItem(QUICK_EDIT_KEY, String(quickEdit));
   }
   closeSettings();
   render();
@@ -1020,6 +1144,7 @@ function init() {
   loadZoom();
   loadTheme();
   loadNowLineSetting();
+  loadQuickEdit();
   initTitleEdit();
 
   // Toolbar
@@ -1071,7 +1196,13 @@ function init() {
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEventModal(); closeSettings(); }
+    if (e.key === 'Escape') {
+      const modalOpen = document.getElementById('eventModal').classList.contains('open') ||
+                        document.getElementById('settingsModal').classList.contains('open');
+      closeEventModal();
+      closeSettings();
+      if (!modalOpen && activeTypeFilter) setTypeFilter(activeTypeFilter);
+    }
     const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     if (!inInput && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
       e.preventDefault(); undo();

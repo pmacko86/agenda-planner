@@ -392,22 +392,21 @@ body {
   z-index: 1;
 }
 .event-block.ev-dimmed { opacity: 0.15; cursor: default; }
+.event-block.ev-dimmed .ev-resize,
+.event-block.ev-dimmed .ev-edit-btn,
+.event-block.ev-dimmed .ev-del-btn { cursor: default; }
 .event-block:hover {
-  transform: translateX(2px) translateY(-1px);
   box-shadow: var(--shadow-md);
   z-index: 2;
-  filter: brightness(0.97);
 }
-.event-block:active { transform: translateX(1px) translateY(0); }
 
 /* Drag & resize active states */
 .event-block.is-dragging {
   cursor: grabbing !important;
   opacity: 0.88;
   z-index: 100 !important;
-  box-shadow: 0 12px 32px rgba(0,0,0,.22) !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.18) !important;
   transition: none !important;
-  transform: rotate(0.8deg) scale(1.01) !important;
 }
 .event-block.is-resizing {
   cursor: ns-resize !important;
@@ -416,11 +415,17 @@ body {
 }
 body.is-drag-active   { cursor: grabbing   !important; user-select: none !important; }
 body.is-resize-active { cursor: ns-resize  !important; user-select: none !important; }
+body.is-copy-drag     { cursor: copy       !important; user-select: none !important; }
+.event-block.is-dragging.is-copying {
+  cursor: copy !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22), 0 0 0 2px #10b981 !important;
+}
 
-/* Edit button (top-right corner, hover-revealed) */
-.ev-edit-btn {
+/* Edit / delete buttons (top-right corner, hover-revealed) */
+.ev-edit-btn,
+.ev-del-btn {
   position: absolute;
-  top: 4px; right: 4px;
+  top: 4px;
   width: 20px; height: 20px;
   border: none;
   border-radius: 4px;
@@ -436,8 +441,12 @@ body.is-resize-active { cursor: ns-resize  !important; user-select: none !import
   padding: 0;
   flex-shrink: 0;
 }
-.event-block:hover .ev-edit-btn { opacity: 1; }
+.ev-edit-btn { right: 4px; }
+.ev-del-btn  { right: 28px; }
+.event-block:hover .ev-edit-btn,
+.event-block:hover .ev-del-btn { opacity: 1; }
 .ev-edit-btn:hover { background: rgba(255,255,255,0.85); }
+.ev-del-btn:hover  { background: rgba(239,68,68,0.15); color: #ef4444; }
 
 /* Resize handle */
 .ev-resize {
