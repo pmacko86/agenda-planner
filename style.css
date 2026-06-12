@@ -400,6 +400,21 @@ body {
   z-index: 2;
 }
 
+/* Selection */
+.event-block.is-selected {
+  box-shadow: var(--shadow-sm), 0 0 0 2px var(--primary);
+  z-index: 2;
+}
+
+/* Multi-event drag: secondary blocks that move in sync */
+.event-block.is-multi-dragging {
+  opacity: 0.75;
+  z-index: 99 !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.18) !important;
+  transition: none !important;
+  pointer-events: none !important;
+}
+
 /* Drag & resize active states */
 .event-block.is-dragging {
   cursor: grabbing !important;
@@ -428,6 +443,16 @@ body.is-copy-drag     { cursor: copy       !important; user-select: none !import
   transform: none !important;
   box-shadow: none !important;
   z-index: 0 !important;
+}
+
+/* Rubber-band selection rectangle */
+.select-band {
+  position: fixed;
+  border: 1.5px solid var(--primary);
+  background: rgba(79, 70, 229, 0.08);
+  pointer-events: none;
+  z-index: 200;
+  border-radius: 3px;
 }
 
 /* Edit / delete buttons (top-right corner, hover-revealed) */

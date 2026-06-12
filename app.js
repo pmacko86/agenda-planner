@@ -20,14 +20,16 @@ const ZOOM_KEY       = `agendaPlanner_zoom_${DOC_ID}`;
 const THEME_KEY      = 'agendaPlanner_theme';
 const NOWLINE_KEY    = 'agendaPlanner_nowLine';
 const QUICK_EDIT_KEY = 'agendaPlanner_quickEdit';
+const CASCADE_KEY    = 'agendaPlanner_cascadeResize';
 
 const ICON_MOON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 const ICON_SUN  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 
 let zoomLevel   = 1.0;
 let HOUR_H      = BASE_HOUR_H; // updated by applyZoom()
-let showNowLine = false;
-let quickEdit   = false;
+let showNowLine    = false;
+let quickEdit      = false;
+let cascadeResize  = false;
 
 // ─── Default state ─────────────────────────────────────────────────────────────
 function createDefaultState() {
@@ -100,6 +102,10 @@ function loadNowLineSetting() {
 
 function loadQuickEdit() {
   quickEdit = localStorage.getItem(QUICK_EDIT_KEY) === 'true';
+}
+
+function loadCascadeResize() {
+  cascadeResize = localStorage.getItem(CASCADE_KEY) === 'true';
 }
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -179,6 +185,7 @@ function undo() {
   if (!undoStack.length) return;
   redoStack.push(JSON.parse(JSON.stringify(state)));
   state = undoStack.pop();
+  selectedEventIds.clear();
   saveState();
   render();
   updateUndoRedoBtns();
@@ -188,6 +195,7 @@ function redo() {
   if (!redoStack.length) return;
   undoStack.push(JSON.parse(JSON.stringify(state)));
   state = redoStack.pop();
+  selectedEventIds.clear();
   saveState();
   render();
   updateUndoRedoBtns();
@@ -265,6 +273,10 @@ function findNearestEventEdge(rawMin, dayId, thresholdPx, excludeId = null) {
 // createDrag — drag on empty grid space to define a new event's time range
 let drag       = null;
 let createDrag = null;
+let selectDrag = null;
+
+// ─── Multi-event selection ────────────────────────────────────────────────────
+let selectedEventIds = new Set();
 
 // ─── Legend filter ────────────────────────────────────────────────────────────
 let activeTypeFilter = null;
@@ -403,13 +415,14 @@ function buildDayColumn(day) {
 
   placeNowLine(grid);
 
-  // Drag-to-create on empty grid space
+  // Drag-to-create on empty grid space (or Shift+drag to rubber-band select)
   grid.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (drag || createDrag) return;
+    if (drag || createDrag || selectDrag) return;
     if (e.target.closest('.event-block')) return;
     if (e.target.closest('.day-header-title')) return;
     e.preventDefault();
+    if (e.shiftKey) { startSelectDrag(e); return; }
 
     const rect    = grid.getBoundingClientRect();
     const y       = e.clientY - rect.top;
@@ -458,6 +471,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   block.style.cssText = `top:${top}px;height:${height}px`;
   if (height < 36) block.classList.add('ev-compact');
   if (activeTypeFilter && event.type !== activeTypeFilter) block.classList.add('ev-dimmed');
+  if (selectedEventIds.has(event.id)) block.classList.add('is-selected');
   if (numCols > 1) {
     const lPct = (col / numCols * 100).toFixed(3);
     const rPct = ((numCols - col - 1) / numCols * 100).toFixed(3);
@@ -519,6 +533,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
   editBtn.addEventListener('click', e => {
     e.stopPropagation();
     if (block.classList.contains('ev-dimmed')) return;
+    if (selectedEventIds.size > 0) { selectedEventIds.clear(); renderDays(); return; }
     openEventModal(event);
   });
   block.appendChild(editBtn);
@@ -540,6 +555,7 @@ function buildEventBlock(event, col = 0, numCols = 1) {
     if (!quickEdit && !confirm('Delete this event?')) return;
     pushHistory();
     state.events = state.events.filter(ev => ev.id !== event.id);
+    selectedEventIds.delete(event.id);
     saveState();
     renderDays();
   });
@@ -549,6 +565,27 @@ function buildEventBlock(event, col = 0, numCols = 1) {
     if (e.button !== 0) return;
     if (block.classList.contains('ev-dimmed')) return;
     if (e.target.closest('.ev-resize') || e.target.closest('.ev-edit-btn') || e.target.closest('.ev-del-btn')) return;
+    if (e.shiftKey) {
+      if (drag || createDrag || selectDrag) return;
+      // Shift+drag → rubber-band; Shift+click → let click handler toggle
+      const sx = e.clientX, sy = e.clientY;
+      const onPendingMove = me => {
+        const dx = me.clientX - sx, dy = me.clientY - sy;
+        if (dx * dx + dy * dy >= DRAG_PX_SQ) {
+          document.removeEventListener('mousemove', onPendingMove);
+          document.removeEventListener('mouseup',   onPendingCancel);
+          startSelectDrag(e);
+          onSelectMove(me);
+        }
+      };
+      const onPendingCancel = () => {
+        document.removeEventListener('mousemove', onPendingMove);
+        document.removeEventListener('mouseup',   onPendingCancel);
+      };
+      document.addEventListener('mousemove', onPendingMove);
+      document.addEventListener('mouseup',   onPendingCancel);
+      return;
+    }
     startMoveDrag(e, event.id, block);
   });
 
@@ -556,6 +593,21 @@ function buildEventBlock(event, col = 0, numCols = 1) {
     e.stopPropagation();
     if (block.classList.contains('ev-dimmed')) return;
     if (e.target.closest('.ev-del-btn')) return;
+    if (e.shiftKey) {
+      if (selectedEventIds.has(event.id)) {
+        selectedEventIds.delete(event.id);
+        block.classList.remove('is-selected');
+      } else {
+        selectedEventIds.add(event.id);
+        block.classList.add('is-selected');
+      }
+      return;
+    }
+    if (selectedEventIds.size > 0) {
+      selectedEventIds.clear();
+      renderDays();
+      return;
+    }
     openEventModal(event);
   });
 
@@ -630,6 +682,16 @@ function onCreateEnd() {
   previewEl.remove();
   createDrag = null;
 
+  // Plain click with active selection → deselect only, don't create
+  if (!hasMoved && selectedEventIds.size > 0) {
+    selectedEventIds.clear();
+    renderDays();
+    return;
+  }
+
+  // Drag-create: clear any stale selection silently (renderDays will follow)
+  selectedEventIds.clear();
+
   const { endHour } = state.settings;
   // Click with no drag defaults to a 1-hour event starting at the click point
   const finalStart = hasMoved ? startMin : anchorMin;
@@ -650,6 +712,60 @@ function onCreateEnd() {
   }
 }
 
+// ─── Rubber-band selection ────────────────────────────────────────────────────
+function startSelectDrag(e) {
+  const band = mk('div', 'select-band');
+  band.style.cssText = `left:${e.clientX}px;top:${e.clientY}px;width:0;height:0`;
+  document.body.appendChild(band);
+  selectDrag = { startX: e.clientX, startY: e.clientY, bandEl: band };
+  document.addEventListener('mousemove', onSelectMove, { passive: false });
+  document.addEventListener('mouseup',   onSelectEnd);
+  document.addEventListener('keydown',   onDragKeyDown);
+}
+
+function onSelectMove(e) {
+  if (!selectDrag) return;
+  e.preventDefault();
+  const { startX, startY, bandEl } = selectDrag;
+  const x1 = Math.min(startX, e.clientX), x2 = Math.max(startX, e.clientX);
+  const y1 = Math.min(startY, e.clientY), y2 = Math.max(startY, e.clientY);
+  bandEl.style.left = x1 + 'px'; bandEl.style.top    = y1 + 'px';
+  bandEl.style.width = (x2 - x1) + 'px'; bandEl.style.height = (y2 - y1) + 'px';
+}
+
+function onSelectEnd(e) {
+  if (!selectDrag) return;
+  document.removeEventListener('mousemove', onSelectMove);
+  document.removeEventListener('mouseup',   onSelectEnd);
+  document.removeEventListener('keydown',   onDragKeyDown);
+  const { startX, startY, bandEl } = selectDrag;
+  bandEl.remove();
+  selectDrag = null;
+
+  const x1 = Math.min(startX, e.clientX), x2 = Math.max(startX, e.clientX);
+  const y1 = Math.min(startY, e.clientY), y2 = Math.max(startY, e.clientY);
+  // Treat as a plain click (tiny movement) — just clear selection
+  if ((x2 - x1) < 4 && (y2 - y1) < 4) {
+    if (selectedEventIds.size > 0) { selectedEventIds.clear(); renderDays(); }
+    return;
+  }
+  // Suppress the click that fires after mouseup on the same element (e.g. an event block)
+  document.addEventListener('click', ev => {
+    if (ev.target.closest('.event-block')) ev.stopPropagation();
+  }, { capture: true, once: true });
+
+  // Add all event blocks that overlap the rectangle to the selection
+  let changed = false;
+  for (const block of document.querySelectorAll('.event-block:not(.ev-dimmed)')) {
+    const r = block.getBoundingClientRect();
+    if (r.right > x1 && r.left < x2 && r.bottom > y1 && r.top < y2) {
+      const id = block.dataset.eventId;
+      if (id && !selectedEventIds.has(id)) { selectedEventIds.add(id); changed = true; }
+    }
+  }
+  if (changed) renderDays();
+}
+
 // ─── Move-drag ────────────────────────────────────────────────────────────────
 function startMoveDrag(e, eventId, blockEl) {
   e.preventDefault(); // prevents text selection; does NOT suppress the later click
@@ -659,21 +775,46 @@ function startMoveDrag(e, eventId, blockEl) {
   const duration = toMin(ev.endTime) - startMn;
   const rect     = blockEl.getBoundingClientRect();
 
+  // Build multi-event data when dragging a selected event with ≥2 selected
+  const isMulti = selectedEventIds.has(eventId) && selectedEventIds.size >= 2;
+  const origDayIndex = state.days.findIndex(d => d.id === ev.dayId);
+  const multiEvents = [];
+  if (isMulti) {
+    for (const id of selectedEventIds) {
+      if (id === eventId) continue;
+      const mev = state.events.find(e => e.id === id);
+      if (!mev) continue;
+      const mEl = document.querySelector(`[data-event-id="${id}"]`);
+      if (!mEl) continue;
+      const mStart = toMin(mev.startTime);
+      multiEvents.push({
+        id, blockEl: mEl,
+        originalStartMin: mStart, duration: toMin(mev.endTime) - mStart,
+        originalDayIndex: state.days.findIndex(d => d.id === mev.dayId),
+        currentGrid: mEl.closest('.day-grid'),
+      });
+    }
+  }
+
   drag = {
     type: 'move',
     eventId, duration,
-    offsetY:         e.clientY - rect.top,
-    startClientX:    e.clientX,
-    startClientY:    e.clientY,
+    offsetY:           e.clientY - rect.top,
+    startClientX:      e.clientX,
+    startClientY:      e.clientY,
     blockEl,
-    currentGrid:     blockEl.closest('.day-grid'),
-    originalGrid:    blockEl.closest('.day-grid'),
-    originalTop:     blockEl.style.top,
-    ghostEl:         null,
-    previewStartMin: startMn,
-    previewDayId:    ev.dayId,
-    hasMoved:        false,
-    isCopying:       false,
+    currentGrid:       blockEl.closest('.day-grid'),
+    originalGrid:      blockEl.closest('.day-grid'),
+    originalTop:       blockEl.style.top,
+    ghostEl:           null,
+    previewStartMin:   startMn,
+    previewDayId:      ev.dayId,
+    hasMoved:          false,
+    isCopying:         false,
+    originalStartMin:  startMn,
+    originalDayIndex:  origDayIndex,
+    isMulti,
+    multiEvents,
   };
 
   document.addEventListener('mousemove', onDragMove, { passive: false });
@@ -706,23 +847,30 @@ function onMoveDrag(e) {
   if (!drag.hasMoved) {
     const dx = e.clientX - startClientX, dy = e.clientY - startClientY;
     if (dx * dx + dy * dy < DRAG_PX_SQ) return;
-    drag.isCopying = e.altKey;
     blockEl.classList.add('is-dragging');
-    blockEl.classList.toggle('is-copying', e.altKey);
-    document.body.classList.toggle('is-drag-active', !e.altKey);
-    document.body.classList.toggle('is-copy-drag',    e.altKey);
-    if (e.altKey) showCopyGhost();
+    if (drag.isMulti) {
+      drag.multiEvents.forEach(me => me.blockEl.classList.add('is-multi-dragging'));
+      document.body.classList.add('is-drag-active');
+    } else {
+      drag.isCopying = e.altKey;
+      blockEl.classList.toggle('is-copying', e.altKey);
+      document.body.classList.toggle('is-drag-active', !e.altKey);
+      document.body.classList.toggle('is-copy-drag',    e.altKey);
+      if (e.altKey) showCopyGhost();
+    }
   }
   drag.hasMoved = true;
 
-  // Sync copy mode if Alt is pressed/released mid-drag
-  const copying = e.altKey;
-  if (copying !== drag.isCopying) {
-    drag.isCopying = copying;
-    blockEl.classList.toggle('is-copying', copying);
-    document.body.classList.toggle('is-drag-active', !copying);
-    document.body.classList.toggle('is-copy-drag',    copying);
-    if (copying) showCopyGhost(); else hideCopyGhost();
+  // Sync copy mode if Alt is pressed/released mid-drag (single-event only)
+  if (!drag.isMulti) {
+    const copying = e.altKey;
+    if (copying !== drag.isCopying) {
+      drag.isCopying = copying;
+      blockEl.classList.toggle('is-copying', copying);
+      document.body.classList.toggle('is-drag-active', !copying);
+      document.body.classList.toggle('is-copy-drag',    copying);
+      if (copying) showCopyGhost(); else hideCopyGhost();
+    }
   }
 
   const dayInfo = getDayAtX(e.clientX);
@@ -757,13 +905,63 @@ function onMoveDrag(e) {
 
   const tEl = blockEl.querySelector('.ev-time');
   if (tEl) tEl.textContent = `${fmtTime(fromMin(newStart))} – ${fmtTime(fromMin(newStart + duration))}`;
+
+  // Sync all other selected events during multi-drag (time + day)
+  if (drag.isMulti) {
+    const newDayIndex = state.days.findIndex(d => d.id === targetDayId);
+    const dayDelta    = newDayIndex - drag.originalDayIndex;
+    const timeDelta   = newStart - drag.originalStartMin;
+    for (const me of drag.multiEvents) {
+      const meStart = Math.max(startHour * 60, Math.min(me.originalStartMin + timeDelta, endHour * 60 - me.duration));
+      const meTargetIdx = Math.max(0, Math.min(me.originalDayIndex + dayDelta, state.days.length - 1));
+      me.previewDayId = state.days[meTargetIdx].id;
+      // Move block to the correct day column if it changed
+      const meDayCol  = document.querySelector(`.day-column[data-day-id="${me.previewDayId}"]`);
+      const meTargetGrid = meDayCol ? meDayCol.querySelector('.day-grid') : me.currentGrid;
+      if (meTargetGrid !== me.currentGrid) {
+        meTargetGrid.appendChild(me.blockEl);
+        me.currentGrid = meTargetGrid;
+      }
+      me.blockEl.style.top = `${(meStart - startHour * 60) / 60 * HOUR_H}px`;
+    }
+  }
 }
 
 // ─── Resize-drag ──────────────────────────────────────────────────────────────
+function buildCascadeChain(anchorEndMin, dayId, excludeId) {
+  const chain = [];
+  let curEnd = anchorEndMin;
+  const seen = new Set([excludeId]);
+  while (true) {
+    const next = state.events.find(
+      ev => ev.dayId === dayId && !seen.has(ev.id) && toMin(ev.startTime) === curEnd
+    );
+    if (!next) break;
+    seen.add(next.id);
+    const startMin = toMin(next.startTime);
+    const duration = toMin(next.endTime) - startMin;
+    chain.push({
+      id: next.id,
+      blockEl: document.querySelector(`[data-event-id="${next.id}"]`),
+      originalStartMin: startMin,
+      duration,
+    });
+    curEnd = startMin + duration;
+  }
+  return chain;
+}
+
 function startResizeDrag(e, eventId, blockEl) {
   const ev = state.events.find(ev => ev.id === eventId);
   blockEl.classList.add('is-resizing');
   document.body.classList.add('is-resize-active');
+
+  const origEndMin     = toMin(ev.endTime);
+  const cascadeChain   = cascadeResize ? buildCascadeChain(origEndMin, ev.dayId, eventId) : [];
+  const lastChainEnd   = cascadeChain.length
+    ? cascadeChain[cascadeChain.length - 1].originalStartMin + cascadeChain[cascadeChain.length - 1].duration
+    : origEndMin;
+  const chainSpan      = lastChainEnd - origEndMin;
 
   drag = {
     type: 'resize',
@@ -771,9 +969,11 @@ function startResizeDrag(e, eventId, blockEl) {
     dayId:          ev.dayId,
     startClientY:   e.clientY,
     startMin:       toMin(ev.startTime),
-    originalEndMin: toMin(ev.endTime),
-    previewEndMin:  toMin(ev.endTime),
+    originalEndMin: origEndMin,
+    previewEndMin:  origEndMin,
     hasMoved:       false,
+    cascadeChain,
+    maxEndMin:      state.settings.endHour * 60 - chainSpan,
   };
 
   document.addEventListener('mousemove', onDragMove, { passive: false });
@@ -787,11 +987,11 @@ function onResizeDrag(e) {
 
   const deltaY = e.clientY - startClientY;
   let   newEnd = snapMin(originalEndMin + deltaY / HOUR_H * 60);
-  if (!e.shiftKey) {
+  if (!e.shiftKey && !drag.cascadeChain.length) {
     const snapE = findNearestEventEdge(newEnd, drag.dayId, 8, drag.eventId);
     if (snapE !== null) newEnd = snapE;
   }
-  newEnd = Math.max(startMin + snapMinutes, Math.min(newEnd, endHour * 60));
+  newEnd = Math.max(startMin + snapMinutes, Math.min(newEnd, drag.maxEndMin));
 
   drag.previewEndMin = newEnd;
   drag.hasMoved      = true;
@@ -811,6 +1011,17 @@ function onResizeDrag(e) {
       const n   = Math.max(0, Math.floor(dur / state.settings.paperDuration));
       const rem = dur - n * state.settings.paperDuration;
       pEl.innerHTML = buildPapersHTML(n, rem);
+    }
+  }
+
+  // Shift cascade-chain blocks visually
+  if (drag.cascadeChain.length) {
+    const delta = newEnd - originalEndMin;
+    const { startHour } = state.settings;
+    for (const ce of drag.cascadeChain) {
+      if (ce.blockEl) {
+        ce.blockEl.style.top = `${(ce.originalStartMin + delta - startHour * 60) / 60 * HOUR_H}px`;
+      }
     }
   }
 }
@@ -833,8 +1044,14 @@ function onDragKeyDown(e) {
       document.removeEventListener('keydown',   onDragKeyDown);
       createDrag.previewEl.remove();
       createDrag = null;
+    } else if (selectDrag) {
+      document.removeEventListener('mousemove', onSelectMove);
+      document.removeEventListener('mouseup',   onSelectEnd);
+      document.removeEventListener('keydown',   onDragKeyDown);
+      selectDrag.bandEl.remove();
+      selectDrag = null;
     }
-  } else if (e.key === 'Alt' && drag?.type === 'move' && drag.hasMoved && !drag.isCopying) {
+  } else if (e.key === 'Alt' && drag?.type === 'move' && drag.hasMoved && !drag.isCopying && !drag.isMulti) {
     drag.isCopying = true;
     drag.blockEl.classList.add('is-copying');
     document.body.classList.remove('is-drag-active');
@@ -844,7 +1061,7 @@ function onDragKeyDown(e) {
 }
 
 function onDragKeyUp(e) {
-  if (e.key === 'Alt' && drag?.type === 'move' && drag.isCopying) {
+  if (e.key === 'Alt' && drag?.type === 'move' && drag.isCopying && !drag.isMulti) {
     drag.isCopying = false;
     drag.blockEl.classList.remove('is-copying');
     document.body.classList.add('is-drag-active');
@@ -871,7 +1088,9 @@ function onDragEnd() {
 
   // Capture everything we need before clearing drag state
   const { eventId, hasMoved, type, blockEl,
-          previewStartMin, previewDayId, previewEndMin, duration, isCopying } = drag;
+          previewStartMin, previewDayId, previewEndMin, duration, isCopying,
+          isMulti, multiEvents, originalStartMin,
+          cascadeChain, originalEndMin } = drag;
   hideCopyGhost();
   drag = null;
 
@@ -892,7 +1111,28 @@ function onDragEnd() {
     if (type === 'move') {
       const newStart = fromMin(previewStartMin);
       const newEnd   = fromMin(previewStartMin + duration);
-      if (isCopying) {
+      if (isMulti) {
+        // Move all selected events by the same time + day delta
+        const { startHour, endHour } = state.settings;
+        const timeDelta   = previewStartMin - originalStartMin;
+        const origDayIdx  = state.days.findIndex(d => d.id === ev.dayId);
+        const newDayIdx   = state.days.findIndex(d => d.id === previewDayId);
+        const dayDelta    = newDayIdx - origDayIdx;
+        if (timeDelta !== 0 || dayDelta !== 0) {
+          pushHistory();
+          const clampedStart = Math.max(startHour * 60, Math.min(previewStartMin, endHour * 60 - duration));
+          state.events[evIdx] = { ...ev, dayId: previewDayId, startTime: fromMin(clampedStart), endTime: fromMin(clampedStart + duration) };
+          for (const me of (multiEvents || [])) {
+            const meIdx = state.events.findIndex(e => e.id === me.id);
+            if (meIdx < 0) continue;
+            const meEv = state.events[meIdx];
+            const meStart = Math.max(startHour * 60, Math.min(me.originalStartMin + timeDelta, endHour * 60 - me.duration));
+            const meTargetDayIdx = Math.max(0, Math.min(me.originalDayIndex + dayDelta, state.days.length - 1));
+            state.events[meIdx] = { ...meEv, dayId: state.days[meTargetDayIdx].id, startTime: fromMin(meStart), endTime: fromMin(meStart + me.duration) };
+          }
+          saveState();
+        }
+      } else if (isCopying) {
         pushHistory();
         state.events.push({ ...ev, id: uid(), dayId: previewDayId, startTime: newStart, endTime: newEnd });
         saveState();
@@ -906,6 +1146,16 @@ function onDragEnd() {
       if (newEnd !== ev.endTime) {
         pushHistory();
         state.events[evIdx] = { ...ev, endTime: newEnd };
+        const delta = previewEndMin - originalEndMin;
+        for (const ce of (cascadeChain || [])) {
+          const ceIdx = state.events.findIndex(e => e.id === ce.id);
+          if (ceIdx < 0) continue;
+          const ceEv = state.events[ceIdx];
+          state.events[ceIdx] = { ...ceEv,
+            startTime: fromMin(ce.originalStartMin + delta),
+            endTime:   fromMin(ce.originalStartMin + delta + ce.duration),
+          };
+        }
         saveState();
       }
     }
@@ -1027,6 +1277,7 @@ function handleSaveEvent(e) {
 function handleDeleteEvent() {
   if (!_editEvent || !confirm('Delete this event?')) return;
   pushHistory();
+  selectedEventIds.delete(_editEvent.id);
   state.events = state.events.filter(ev => ev.id !== _editEvent.id);
   saveState();
   closeEventModal();
@@ -1039,8 +1290,9 @@ function openSettings() {
   document.getElementById('settingStartHour').value      = state.settings.startHour;
   document.getElementById('settingEndHour').value        = state.settings.endHour;
   document.getElementById('settingSnapMinutes').value    = state.settings.snapMinutes;
-  document.getElementById('settingShowNowLine').checked  = showNowLine;
-  document.getElementById('settingQuickEdit').checked    = quickEdit;
+  document.getElementById('settingShowNowLine').checked    = showNowLine;
+  document.getElementById('settingQuickEdit').checked      = quickEdit;
+  document.getElementById('settingCascadeResize').checked  = cascadeResize;
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -1077,6 +1329,11 @@ function handleSaveSettings() {
     quickEdit = qe;
     localStorage.setItem(QUICK_EDIT_KEY, String(quickEdit));
   }
+  const cr = document.getElementById('settingCascadeResize').checked;
+  if (cr !== cascadeResize) {
+    cascadeResize = cr;
+    localStorage.setItem(CASCADE_KEY, String(cascadeResize));
+  }
   closeSettings();
   render();
 }
@@ -1101,6 +1358,7 @@ function loadFromFile(file, onSuccess) {
       imported.settings.snapMinutes = imported.settings.snapMinutes || 15;
       pushHistory();
       state = imported;
+      selectedEventIds.clear();
       saveState();
       render();
       document.title = state.conferenceName + ' – Agenda Planner';
@@ -1137,6 +1395,7 @@ function handleLoadSample() {
   if (!confirm('Replace all current data with sample data?')) return;
   pushHistory();
   state = createDefaultState();
+  selectedEventIds.clear();
   saveState();
   closeSettings();
   render();
@@ -1147,6 +1406,7 @@ function handleClearData() {
   if (!confirm('Delete all events and start with an empty schedule?')) return;
   pushHistory();
   state = createEmptyState();
+  selectedEventIds.clear();
   saveState();
   closeSettings();
   render();
@@ -1195,6 +1455,7 @@ function init() {
   loadTheme();
   loadNowLineSetting();
   loadQuickEdit();
+  loadCascadeResize();
   initTitleEdit();
 
   // Toolbar
@@ -1251,7 +1512,13 @@ function init() {
                         document.getElementById('settingsModal').classList.contains('open');
       closeEventModal();
       closeSettings();
-      if (!modalOpen && activeTypeFilter) setTypeFilter(activeTypeFilter);
+      if (!modalOpen) {
+        const hadFilter    = !!activeTypeFilter;
+        const hadSelection = selectedEventIds.size > 0;
+        selectedEventIds.clear();
+        if (hadFilter) setTypeFilter(activeTypeFilter); // setTypeFilter calls renderDays
+        else if (hadSelection) renderDays();
+      }
     }
     const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     if (!inInput && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
