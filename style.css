@@ -391,7 +391,7 @@ body {
   user-select: none;
   z-index: 1;
 }
-.event-block.ev-dimmed { opacity: 0.15; cursor: default; }
+.event-block.ev-dimmed { opacity: 0.28; cursor: default; }
 .event-block.ev-dimmed .ev-resize,
 .event-block.ev-dimmed .ev-edit-btn,
 .event-block.ev-dimmed .ev-del-btn { cursor: default; }
@@ -830,10 +830,19 @@ body.is-copy-drag     { cursor: copy       !important; user-select: none !import
   background: rgba(23,28,44,0.85);
 }
 
+[data-theme="dark"] .ev-edit-btn,
+[data-theme="dark"] .ev-del-btn  { background: rgba(255,255,255,0.1); }
+[data-theme="dark"] .ev-edit-btn:hover { background: rgba(255,255,255,0.2); }
+[data-theme="dark"] .ev-del-btn:hover  { background: rgba(239,68,68,0.22); }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .day-header {
     background: rgba(23,28,44,0.85);
   }
+  :root:not([data-theme="light"]) .ev-edit-btn,
+  :root:not([data-theme="light"]) .ev-del-btn  { background: rgba(255,255,255,0.1); }
+  :root:not([data-theme="light"]) .ev-edit-btn:hover { background: rgba(255,255,255,0.2); }
+  :root:not([data-theme="light"]) .ev-del-btn:hover  { background: rgba(239,68,68,0.22); }
 }
 
 @media (prefers-color-scheme: dark) {

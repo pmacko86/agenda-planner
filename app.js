@@ -4,7 +4,19 @@
 const BASE_HOUR_H  = 64;  // px per hour at 100% zoom
 const DRAG_PX_SQ   = 16;  // 4² — pixel threshold before move-drag activates
 const ZOOM_STEPS   = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
-const ZOOM_KEY       = 'agendaPlanner_zoom';
+// Each browser tab gets its own document ID so tabs hold independent documents.
+// sessionStorage is tab-local (survives refresh, not shared across tabs).
+const DOC_ID = (() => {
+  let id = sessionStorage.getItem('agendaPlanner_docId');
+  if (!id) {
+    id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    sessionStorage.setItem('agendaPlanner_docId', id);
+  }
+  return id;
+})();
+
+const STATE_KEY      = `agendaPlanner_v2_${DOC_ID}`;
+const ZOOM_KEY       = `agendaPlanner_zoom_${DOC_ID}`;
 const THEME_KEY      = 'agendaPlanner_theme';
 const NOWLINE_KEY    = 'agendaPlanner_nowLine';
 const QUICK_EDIT_KEY = 'agendaPlanner_quickEdit';
@@ -64,7 +76,12 @@ let state;
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('agendaPlanner_v2');
+    let raw = localStorage.getItem(STATE_KEY);
+    if (!raw) {
+      // One-time migration: first tab inherits data from the pre-multi-tab key.
+      const legacy = localStorage.getItem('agendaPlanner_v2');
+      if (legacy) { raw = legacy; localStorage.removeItem('agendaPlanner_v2'); }
+    }
     state = raw ? JSON.parse(raw) : createDefaultState();
     state.settings.snapMinutes = state.settings.snapMinutes || 15;
   } catch {
@@ -73,7 +90,7 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem('agendaPlanner_v2', JSON.stringify(state));
+  localStorage.setItem(STATE_KEY, JSON.stringify(state));
 }
 
 // ─── Now-line setting ─────────────────────────────────────────────────────────
@@ -117,7 +134,12 @@ function updateThemeBtn() {
 
 // ─── Zoom ─────────────────────────────────────────────────────────────────────
 function loadZoom() {
-  const saved = parseFloat(localStorage.getItem(ZOOM_KEY));
+  let raw = localStorage.getItem(ZOOM_KEY);
+  if (!raw) {
+    const legacy = localStorage.getItem('agendaPlanner_zoom');
+    if (legacy) { raw = legacy; localStorage.removeItem('agendaPlanner_zoom'); }
+  }
+  const saved = parseFloat(raw);
   zoomLevel = isNaN(saved) ? 1.0 : Math.max(0.5, Math.min(3.0, saved));
   applyZoom(false);
 }
