@@ -74,10 +74,28 @@ Data is saved automatically to `localStorage` and survives page reloads.
 | Day starts at | 08:00 | First hour shown in the calendar |
 | Day ends at | 20:00 | Last hour shown in the calendar |
 
+## Publishing to GitHub Pages
+
+The app is static, so it can be hosted as-is on GitHub Pages. `deploy.sh` copies only `index.html`, `style.css` and `app.js` to the `gh-pages` branch of `origin` (creating it on first run), leaving `main` untouched.
+
+**One-time setup**
+1. Make sure `origin` points to your GitHub repo and you can push to it.
+2. Run `./deploy.sh` once so the `gh-pages` branch exists.
+3. On GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a branch**, then choose branch `gh-pages` and folder `/ (root)`.
+
+**Every update**
+```
+./deploy.sh
+```
+The script prints the site URL (`https://<user>.github.io/<repo>/`). It usually goes live within a minute or two. Note that it deploys your working tree, so commit your changes first if you want the deployed version to match a commit (the deploy commit message records the source commit hash).
+
+Each visitor's schedule is stored in their own browser's `localStorage`; nothing is shared through the hosted site.
+
 ## Project structure
 
 ```
 index.html   — markup and modals
 style.css    — all styles, including dark-mode variable overrides
 app.js       — all application logic (state, rendering, drag, modals)
+deploy.sh    — publishes the app to the gh-pages branch for GitHub Pages
 ```
